@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ty_cache/
+
+deps/
+dist/
+build/
+*.mcpb
+
+ui/dist/
+ui/node_modules/
+
+.DS_Store
+*.swp
+.env
+.env.local
+
+.nimblebrain
+
+# /implement skill scratch — task-tracking directories for in-flight work.
+# Keep these local; they're planning artifacts, not shippable source.
+.tasks/

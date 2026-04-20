@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schemas.nimblebrain.ai/v1/nimblebrain-server.schema.json",
+  "name": "ai.nimblebrain/synapse-research",
+  "description": "Deep-research MCP app — task-augmented tool powered by GPT-Researcher (Tavily search + Anthropic Claude + OpenAI embeddings). Streams progress through both the MCP tasks protocol and the Upjack entity stream.",
+  "version": "0.1.0",
+  "title": "Research Synapse App",
+  "repository": {
+    "url": "https://github.com/NimbleBrainInc/synapse-research",
+    "source": "https://github.com/NimbleBrainInc/synapse-research"
+  },
+  "_meta": {
+    "ai.nimblebrain/v1": {
+      "runtime": "python:3.13",
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "prompts": false
+      },
+      "display": {
+        "category": "research",
+        "tags": [
+          "synapse",
+          "research",
+          "deep-research",
+          "gpt-researcher",
+          "mcp-tasks"
+        ]
+      },
+      "deployment": {
+        "protocol": "http",
+        "port": 8000,
+        "mcpPath": "/mcp"
+      },
+      "container": {
+        "healthCheck": {
+          "path": "/health",
+          "port": 8000
+        }
+      },
+      "resources": {
+        "limits": {
+          "memory": "512Mi",
+          "cpu": "1000m"
+        },
+        "requests": {
+          "memory": "256Mi",
+          "cpu": "250m"
+        }
+      },
+      "scaling": {
+        "minReplicas": 1,
+        "maxReplicas": 2
+      }
+    }
+  }
+}

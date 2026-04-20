@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Research Run",
+  "description": "A research task execution. Status mirrors the MCP task lifecycle (working, completed, failed, cancelled). Progress and report are updated by the worker in real time.",
+  "allOf": [
+    { "$ref": "https://upjack.dev/schemas/v1/upjack-entity.schema.json" }
+  ],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The research query or topic",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "run_status": {
+      "type": "string",
+      "enum": ["working", "completed", "failed", "cancelled"],
+      "default": "working",
+      "description": "Execution status, mirrors the MCP task status for the underlying run. Distinct from the base entity `status` field which tracks lifecycle (active/archived/deleted)."
+    },
+    "progress": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 0,
+      "description": "Completion percent (0–100)"
+    },
+    "status_message": {
+      "type": ["string", "null"],
+      "description": "Short human-readable description of the current phase"
+    },
+    "report": {
+      "type": ["string", "null"],
+      "description": "The final markdown report. Populated when status becomes 'completed'."
+    },
+    "sources": {
+      "type": "array",
+      "description": "Sources consulted during the research run. Populated incrementally during the 'Gathering sources' phase.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical URL of the source"
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable title of the source"
+          },
+          "snippet": {
+            "type": ["string", "null"],
+            "description": "Short excerpt or summary of the source (optional)"
+          }
+        },
+        "required": ["url", "title"]
+      },
+      "default": []
+    },
+    "error_message": {
+      "type": ["string", "null"],
+      "description": "Error details when status is 'failed'"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the run started"
+    },
+    "completed_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the run reached a terminal state"
+    }
+  },
+  "required": ["query"]
+}
