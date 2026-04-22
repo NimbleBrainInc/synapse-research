@@ -1,19 +1,38 @@
+# ── Strip anywhere in the tree (generated/OS cruft) ──
+# Unanchored patterns: match at project root AND inside deps/.
 __pycache__/
 *.pyc
+*.pyo
 *.pyi
-.venv/
-.pytest_cache/
-.ruff_cache/
-.ty_cache/
-tests/
-test/
-test_*.py
-*_test.py
-conftest.py
-examples/
-docs/
-doc/
+.DS_Store
+*.mcpb
 **/*.dist-info/RECORD
+
+# ── Project-only (anchored with / so deps/ is safe) ──
+# Leading `/` means "only at project root". Without it, gitignore
+# patterns match anywhere in the tree — including vendored deps/,
+# which can strip legitimate runtime modules like
+# beartype/_conf/conftest.py. Keep these anchored.
+/.venv/
+/.git/
+/.gitignore
+/.mcpbignore
+/.pytest_cache/
+/.ruff_cache/
+/.ty_cache/
+/tests/
+/test/
+/test_*.py
+/*_test.py
+/examples/
+/docs/
+/doc/
+/Makefile
+/uv.lock
+
+# ── UI: ship built dist/ only ──
+# These are already path-scoped (contain `/`), so gitignore treats
+# them as anchored-to-root by default; left as-is for readability.
 ui/node_modules/
 ui/src/
 ui/*.ts
@@ -21,8 +40,3 @@ ui/*.json
 ui/index.html
 ui/vite.config.ts
 !ui/dist/
-.git/
-.gitignore
-.mcpbignore
-Makefile
-uv.lock
