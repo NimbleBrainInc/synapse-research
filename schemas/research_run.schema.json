@@ -12,6 +12,11 @@
       "minLength": 1,
       "maxLength": 2048
     },
+    "title": {
+      "type": ["string", "null"],
+      "description": "Short human label for the run (3–8 words). Distinct from `query`, which holds the full research brief. Auto-generated server-side via the FAST_LLM shortly after the entity is created when not supplied by the caller. Renders in list rows and as the detail-view heading; the UI falls back to a truncated `query` while title is null.",
+      "maxLength": 80
+    },
     "run_status": {
       "type": "string",
       "enum": ["working", "completed", "failed", "cancelled"],
@@ -70,6 +75,42 @@
       "type": ["string", "null"],
       "format": "date-time",
       "description": "ISO 8601 timestamp when the run reached a terminal state"
+    },
+    "last_heartbeat_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Last time the worker emitted any signal, including liveness heartbeats. Updated continuously while the run is working — independent of progress, which only advances on real phase transitions. Used by the UI to surface staleness when no signal has arrived in 10s+ (separates 'still alive but slow' from 'actually hung')."
+    },
+    "current_phase_started_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp recording when the currently-active phase began. The UI derives the elapsed-time suffix in the status line from this — `now - current_phase_started_at`, recomputed every second client-side. This decouples display cadence from worker write cadence: the worker only updates this value on phase transitions (a stable input), the UI animates the display (the smooth output). Cleared on terminal transitions."
+    },
+    "phase_history": {
+      "type": "array",
+      "description": "Timeline of phase transitions for this run. Append-only; each entry records when a phase started and when it ended (null for the currently-running phase). Preserved after completion so the time distribution is auditable forever.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": ["planning", "searching", "scraping", "analyzing", "writing", "completed"],
+            "description": "Discrete phase name"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when this phase began"
+          },
+          "ended_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when this phase ended; null if currently running"
+          }
+        },
+        "required": ["phase", "started_at"]
+      },
+      "default": []
     }
   },
   "required": ["query"]

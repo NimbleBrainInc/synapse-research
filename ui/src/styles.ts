@@ -29,11 +29,19 @@ const TEXT_ACCENT = "var(--color-text-accent, #0055FF)";
 const DANGER = "var(--nb-color-danger, #dc2626)";
 
 // Status colors — filled dots only; no badges, no fills elsewhere.
+//
+// `stale` and `hung` are *liveness* substitutes for `working`. They render
+// only on a working run whose heartbeat has fallen behind: muted yellow
+// when investigation is warranted (10–30s silence), amber when likely
+// stalled (30s+). Same hierarchy as warnings — present-but-not-loud at
+// "stale", obvious at "hung".
 export const STATUS_COLORS = {
   working: "var(--nb-color-info, #3b82f6)",
   completed: "var(--nb-color-success, #10b981)",
   failed: DANGER,
   cancelled: TEXT_SECONDARY,
+  stale: "var(--nb-color-warning, #d97706)",
+  hung: "var(--nb-color-warning-strong, #b45309)",
 } as const;
 
 // The single column width for the reading composition. Chosen to feel like a
@@ -540,6 +548,33 @@ export const s: Record<string, CSSProperties> = {
     color: TEXT_SECONDARY,
     letterSpacing: "0.005em",
   },
+  // Query block — the full research brief, rendered as labeled body
+  // prose under the heading. Distinct from the heading because the
+  // heading is a short label (3–8 words) and the brief can be a
+  // paragraph. Subtle eyebrow + body text, no card, no card chrome —
+  // matches the rest of the reading composition.
+  queryBlock: {
+    marginBottom: "2rem",
+  },
+  queryEyebrow: {
+    fontFamily: FONT_SANS,
+    fontSize: TEXT_XS,
+    lineHeight: TEXT_XS_LH,
+    fontWeight: WEIGHT_MEDIUM,
+    color: TEXT_SECONDARY,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    margin: "0 0 0.5rem",
+  },
+  queryBody: {
+    fontFamily: FONT_SANS,
+    fontSize: TEXT_BASE,
+    lineHeight: TEXT_BASE_LH,
+    color: TEXT_PRIMARY,
+    margin: 0,
+    whiteSpace: "pre-wrap",
+    wordWrap: "break-word",
+  },
   // Retry affordance on terminal-failure runs (failed / cancelled). Text
   // link, same visual language as `deleteLink` and `backLink` — no pill,
   // no fill. Fires `start_research` with the original query; the old entity
@@ -616,6 +651,8 @@ export const s: Record<string, CSSProperties> = {
     fontSize: TEXT_SM,
     lineHeight: TEXT_SM_LH,
     fontStyle: "italic",
+    // Breathing room from the progress bar / staleness line above.
+    marginTop: "1.5rem",
   },
 
   // ---- Markdown element styles (react-markdown `components`) ----
@@ -705,6 +742,23 @@ export const s: Record<string, CSSProperties> = {
     border: "none",
     borderTop: `1px solid rgba(0,0,0,0.08)`,
     margin: "2rem 0",
+  },
+
+  // ---- Staleness indicator (detail view) ----
+  // Renders ONLY when the run is `working` and the heartbeat has fallen
+  // behind STALE_THRESHOLD_S. Visual hierarchy: small + warning-tinted at
+  // "stale", same size + stronger color at "hung". Mirrors the meta-line
+  // typography so it feels like part of the existing status row.
+  stalenessLine: {
+    marginTop: "0.5rem",
+    fontSize: TEXT_XS,
+    lineHeight: TEXT_XS_LH,
+    color: STATUS_COLORS.stale,
+    fontVariantNumeric: "tabular-nums",
+  },
+  stalenessLineHung: {
+    color: STATUS_COLORS.hung,
+    fontWeight: WEIGHT_MEDIUM,
   },
 
   // ---- Sources section (detail view) ----

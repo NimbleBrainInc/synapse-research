@@ -5,4 +5,4 @@ long-running research workflow. The real research implementation swaps in
 at `mcp_research.worker` once dial tone is validated.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"

@@ -23,6 +23,18 @@ from typing import Any
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _no_provider_keys(monkeypatch):
+    """Strip provider API keys from the test env so any code path that
+    attempts a real call (the new background title generator, future
+    additions) silently no-ops instead of hitting a live provider.
+    Matches the keyless policy in CLAUDE.md — CI already runs without
+    these set; this just guarantees the same on a developer's machine
+    where their shell may have them exported."""
+    for key in ("ANTHROPIC_API_KEY", "TAVILY_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+
+
 @pytest.fixture
 def fake_researcher(monkeypatch):
     """Patch ``GPTResearcher`` with a scripted fake that drives handler callbacks."""
