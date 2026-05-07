@@ -4,6 +4,7 @@
 [![NimbleBrain](https://img.shields.io/badge/NimbleBrain-nimblebrain.ai-purple)](https://nimblebrain.ai?utm_source=github&utm_medium=readme&utm_campaign=synapse-research)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2)](https://nimblebrain.ai/discord?utm_source=github&utm_medium=readme&utm_campaign=synapse-research)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/nimblebraininc-synapse-research)
 
 Deep-research MCP app. Exposes one task-augmented tool (`start_research`) that runs [GPT-Researcher](https://github.com/assafelovic/gpt-researcher) against Tavily (web search), Anthropic Claude (planner + writer LLM), and OpenAI (embeddings only), and streams progress back through both the MCP tasks protocol and the Upjack entity stream. Fully compliant with the MCP 2025-11-25 draft `tasks` utility via FastMCP 3.
 
