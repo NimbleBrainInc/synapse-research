@@ -58,7 +58,7 @@ Two independent channels update in lockstep:
 
 ### UI retry flow
 
-The sidebar's "Retry with same query" button uses `useCallToolAsTask("start_research")` from the Synapse SDK (≥ 0.6.0). The task handle returns a `taskId` in under a second; the new `research_run` entity materialises shortly after (the worker creates it as its first action), and the UI navigates to the new detail page off the entity channel — not by waiting on the task's terminal result, which arrives minutes later. Second click on the button while "Starting…" routes through `handle.cancel()`.
+The sidebar's "Retry with same query" button uses `useCallToolAsTask("start_research")` from the Synapse SDK (≥ 0.7.0). The task handle returns a `taskId` in under a second; the new `research_run` entity materialises shortly after (the worker creates it as its first action), and the UI navigates to the new detail page off the entity channel — not by waiting on the task's terminal result, which arrives minutes later. Second click on the button while "Starting…" routes through `handle.cancel()`.
 
 Legacy hosts (platform builds prior to the tasks-capability advertisement) cause `callToolAsTask` to throw. The UI catches that case and falls back to `synapse.callTool` fire-and-forget, so the feature keeps working with older deploys — only the starting-state indicator and the cancel handle degrade.
 

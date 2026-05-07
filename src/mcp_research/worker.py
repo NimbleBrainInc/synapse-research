@@ -270,6 +270,14 @@ async def run_research(
         # carries it on the same write the report arrives on. Cap is
         # tight — the run already completed; we don't want to add visible
         # latency just for a label.
+        #
+        # If the title still hasn't arrived after the brief wait, we
+        # deliberately do NOT cancel: the task runs detached, asyncio's
+        # event loop keeps it alive, and it'll patch the entity when it
+        # eventually lands. UI sees the title arrive via useDataSync. The
+        # only terminal paths that DO cancel are cancellation/timeout/
+        # exception below — there the run failed and there's no point
+        # keeping the title task alive.
         await _await_title_briefly(title_task)
 
         return {"run_id": run_id, "status": "completed", "report": report}

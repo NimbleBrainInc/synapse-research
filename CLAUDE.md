@@ -61,7 +61,7 @@ The worker contract (`run_research` in `worker.py`):
 1. Creates a `research_run` entity (`run_status="working"`, `progress=0`)
 2. Instantiates `GPTResearcher(query, report_type="research_report", log_handler=handler)`
 3. Wraps `conduct_research()` + `write_report()` in `asyncio.wait_for(timeout=300)` (5-min hard cap)
-4. Streams phase transitions via the `_MCPLogHandler` — maps GPT-Researcher's async log events onto monotonic progress buckets (planning=10 → searching=30 → scraping=55 → analyzing=75 → writing=85 → done=100)
+4. Streams phase transitions via the `_MCPLogHandler` — maps GPT-Researcher's async log events onto monotonic progress buckets (planning=5 → searching=20 → scraping=40 → analyzing=60 → writing=70 → completed=100). Writing intentionally holds at 70 for the entire LLM generation; `last_heartbeat_at` keeps ticking so the UI shows liveness without faking progress.
 5. Updates the entity with `sources` as they stream in, then the final `report`
 6. Returns `{"run_id", "status": "completed", "report": <markdown>}`
 

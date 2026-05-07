@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
 from collections.abc import Callable
 from contextvars import ContextVar
 from datetime import UTC, datetime
@@ -490,10 +489,19 @@ def _to_call_tool_result(tool_result: Any) -> CallToolResult:
     if isinstance(raw, list):
         return CallToolResult(content=raw, isError=False)
 
-    # Unexpected — stringify defensively rather than raise.
+    # Unexpected shape — FastMCP's to_mcp_result() returned something we
+    # don't model. Surface as a failed task rather than smuggling a
+    # repr() through as success: a regression in FastMCP's contract
+    # should be loud, not silently delivered as a string-of-repr that
+    # the agent then treats as the tool's real output.
     return CallToolResult(
-        content=[TextContent(type="text", text=str(raw))],
-        isError=False,
+        content=[
+            TextContent(
+                type="text",
+                text=f"Internal error: unexpected tool-result shape {type(raw).__name__}: {raw!r}",
+            )
+        ],
+        isError=True,
     )
 
 
@@ -535,7 +543,7 @@ async def _safe_terminal(
             )
         )
         await rc.session.send_notification(notification)
-    except (LookupError, Exception):  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         # No active session, or transport gone. Polling still works.
         logger.debug("could not emit notifications/tasks/status for %s", task_id, exc_info=True)
 
@@ -674,8 +682,3 @@ __all__ = [
     "task_aware",
     "update_task_status",
 ]
-
-
-# Suppress unused-import warning for uuid; reserved for future use if we
-# decide to generate task IDs ourselves rather than letting the SDK do it.
-_ = uuid
