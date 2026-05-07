@@ -54,7 +54,9 @@ make bump VERSION=0.2.0
 
 ## How the task-augmented tool works
 
-`start_research` declares `execution.taskSupport: "optional"` via FastMCP's `TaskConfig(mode="optional")`. The worker contract (`run_research` in `worker.py`):
+`start_research` declares `execution.taskSupport: "optional"` via the in-process task helper (`src/mcp_research/_tasks.py`) — NOT FastMCP's built-in `TaskConfig(mode="optional")`. FastMCP's task module routes through pydocket/Redis, which we deliberately avoid: tenant pods enforce namespace isolation and don't expose Redis (see `.tasks/task-aware-tools/PLATFORM_RELAY_VERIFIED.md`). The helper composes the MCP Python SDK's `InMemoryTaskStore` and `experimental.enable_tasks(store=...)` to provide a fully spec-compliant tasks utility in-process. No Redis. No Docket. Tasks live for the bundle subprocess lifetime; `_reap_orphaned_runs()` on startup cleans up entities orphaned by a crash.
+
+The worker contract (`run_research` in `worker.py`):
 
 1. Creates a `research_run` entity (`run_status="working"`, `progress=0`)
 2. Instantiates `GPTResearcher(query, report_type="research_report", log_handler=handler)`
@@ -69,6 +71,20 @@ Error handling:
 - Any other exception → mark entity `failed` with `error_message`, re-raise
 
 On server restart, `_reap_orphaned_runs()` flips any entity stuck in `working` to `failed` with a clear message — no lingering ghost runs.
+
+## SDK dependency
+
+Requires `@nimblebrain/synapse ≥ 0.7.0` (the release that introduces `useCallToolAsTask`). Until 0.7.0 is on npm, install via `npm pack` from the sibling SDK checkout: `(cd packages/synapse && npm pack --pack-destination /tmp) && (cd synapse-apps/synapse-research/ui && npm install /tmp/nimblebrain-synapse-0.7.0.tgz)`. `ui/dist/` is gitignored and rebuilt by the release workflow.
+
+## UI retry: dual-channel pattern
+
+The "Retry with same query" button uses `useCallToolAsTask("start_research")` (synapse ≥ 0.7.0), not blocking `callTool`. Lifecycle ("Starting…" indicator, cancel) comes from the task channel; the new `run_id` comes from `useDataSync` on `research_run` because the worker creates the entity before any GPT-Researcher work — so the UI sees the new id within ~100ms while the task is still `working`. `App.tsx`'s `useRetryFlow` snapshots the known-id set at fire time and navigates when a new id appears.
+
+Fallback for legacy hosts: when `callToolAsTask` throws (host didn't advertise `tasks.requests.tools.call`), `App.tsx` falls back to fire-and-forget `synapse.callTool`. Entity channel still delivers `run_id`; only the starting indicator and cancel degrade.
+
+Excluded from the task path: `list_research_runs` / `delete_research_run` (fast CRUD, plain `callTool`); agent-initiated `start_research` (platform engine augments at its layer).
+
+Pattern docs: [docs.nimblebrain.ai/apps/synapse#long-running-tools](https://docs.nimblebrain.ai/apps/synapse/#long-running-tools). Regression guards: `tests/test_ui_retry_contract.py`, `tests/test_spec_compliance.py::test_entity_appears_before_task_terminal`.
 
 ## Configuration
 

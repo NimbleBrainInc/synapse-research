@@ -16,10 +16,10 @@ import sys
 from pathlib import Path
 
 from fastmcp import Context
-from fastmcp.server.tasks import TaskConfig
 from upjack.app import UpjackApp
 from upjack.server import create_server
 
+from mcp_research._tasks import enable_in_memory_tasks, register_task_aware_tool
 from mcp_research.worker import run_research
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -100,7 +100,6 @@ mcp._mcp_server.instructions = (
 
 
 @mcp.tool(
-    task=TaskConfig(mode="optional"),
     name="start_research",
     description=(
         "Run a research task on the given query. Supports MCP task augmentation — "
@@ -109,22 +108,28 @@ mcp._mcp_server.instructions = (
         "that do not will block until the research completes and receive the full "
         "report inline. Either way, the server creates a `research_run` entity and "
         "updates its progress in real time so the Synapse UI can render live status. "
-        "The worker typically takes ~60 seconds to 3 minutes and returns a markdown report."
+        "The worker typically takes ~60 seconds to 3 minutes and returns a markdown report. "
+        "Pass `title` (3-8 word label) when you already know the topic — saves a "
+        "background LLM call the server would otherwise make to derive one."
     ),
 )
-async def start_research(query: str, ctx: Context) -> dict:
+async def start_research(query: str, ctx: Context, title: str | None = None) -> dict:
     """Kick off a research run.
 
     Args:
         query: The research query or topic.
         ctx: FastMCP Context — used for progress and structured logging.
+        title: Optional short label (3–8 words) for list rows and the
+            detail-view heading. When omitted, the server generates one
+            in the background via the FAST_LLM and patches the entity
+            ~500ms later.
 
     Returns:
         A dict with `run_id`, `status`, and `report` (markdown). On cancellation or
         failure, the underlying asyncio exception propagates and FastMCP marks the
         task terminal.
     """
-    return await run_research(app=_app, query=query, ctx=ctx)
+    return await run_research(app=_app, query=query, ctx=ctx, title=title)
 
 
 @mcp.resource("ui://research/main")
@@ -137,6 +142,31 @@ def research_ui() -> str:
         "<h2>Research</h2>"
         "<p>UI not built. Run <code>cd ui &amp;&amp; npm install &amp;&amp; npm run build</code>.</p>"
         "</body></html>"
+    )
+
+
+# Wire in-process MCP tasks utility. Must run AFTER all @mcp.tool registrations
+# so the wrapped CallToolRequest / ListToolsRequest handlers see FastMCP's
+# originals to delegate to. Replaces FastMCP's TaskConfig+Docket path; we keep
+# task state in-memory (per-process), no Redis. See _tasks.py for rationale.
+#
+# Wrapped in try/except so a future helper bug can't crash the bundle on
+# startup — the tool is still usable inline (without task augmentation) if
+# the helper fails to install. Failures are logged to stderr (visible in
+# platform logs as `[bundle-stderr] ...`) so the regression is diagnosable.
+register_task_aware_tool("start_research", mode="optional")
+try:
+    enable_in_memory_tasks(mcp)
+    print(
+        "[synapse-research] in-memory tasks helper enabled (no Redis, no Docket)",
+        file=sys.stderr,
+    )
+except Exception as exc:  # noqa: BLE001
+    print(
+        f"[synapse-research] WARNING: enable_in_memory_tasks failed: {exc}. "
+        "Bundle will run but task-augmented calls will fall through to FastMCP's "
+        "default path (which requires Docket+Redis). Inline calls still work.",
+        file=sys.stderr,
     )
 
 

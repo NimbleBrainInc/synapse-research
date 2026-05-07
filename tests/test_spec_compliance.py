@@ -52,6 +52,26 @@ async def test_start_research_declares_task_support(mcp):
     )
 
 
+async def test_start_research_taskSupport_is_optional(mcp):
+    """Intent-specific assertion for the UI retry contract: the bundle MUST
+    declare ``optional`` — not ``required`` — so legacy hosts that don't yet
+    advertise the tasks capability can still invoke the tool (inline). The
+    synapse-research UI's retry flow depends on this graceful fallback:
+    ``useCallToolAsTask`` throws against such hosts, and App.tsx falls back
+    to a plain ``callTool`` for the same tool. If someone flips this to
+    ``required`` that fallback silently stops working."""
+    defs = await tool_defs(mcp)
+    tool = defs["start_research"]
+    execution = getattr(tool, "execution", None) or getattr(tool, "_meta", {}).get("execution")
+    mode = getattr(execution, "taskSupport", None) or getattr(execution, "task_support", None)
+    if mode is None and isinstance(execution, dict):
+        mode = execution.get("taskSupport") or execution.get("task_support")
+    assert mode == "optional", (
+        "start_research must declare execution.taskSupport='optional' to preserve "
+        f"the UI's legacy-host fallback path, got {mode!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Non-augmented call on a required-task tool must be rejected
 # ---------------------------------------------------------------------------
@@ -191,9 +211,114 @@ async def test_entity_reflects_completed_state(app_and_mcp):
     assert run.get("completed_at")
 
 
+async def test_entity_appears_before_task_terminal(app_and_mcp, monkeypatch):
+    """Dual-channel contract — the research_run entity MUST be visible on
+    the UI channel (entity stream) while the task is still working on the
+    engine channel. The UI's retry flow depends on this: the `run_id` is
+    delivered via `useDataSync`, not via `tasks/result`, so the entity must
+    materialise promptly after the tool is invoked — well before the task
+    reaches terminal status.
+
+    Swap in a slow fake that blocks mid-run; assert we can observe the
+    entity while it's still ``working``. See docs/CLAUDE.md section
+    "Long-running tools (MCP tasks)" for the full contract."""
+    upjack_app, mcp = app_and_mcp
+
+    import mcp_research.worker as worker_module
+
+    class SlowStartFake:
+        def __init__(self, query, report_type, log_handler, **kwargs):
+            self.query = query
+            self.handler = log_handler
+
+        async def conduct_research(self):
+            # Drive at least one phase transition so the entity has a
+            # non-zero progress when we observe it, then stall long
+            # enough for the test to observe.
+            await self.handler.on_research_step("planning", {})
+            await asyncio.sleep(1.0)
+
+        async def write_report(self):
+            return f"# {self.query}\n\nLate report."
+
+        def get_research_sources(self):
+            return []
+
+    monkeypatch.setattr(worker_module, "GPTResearcher", SlowStartFake)
+
+    async with Client(mcp) as client:
+        task = await client.call_tool(
+            "start_research", {"query": "entity-first contract"}, task=True
+        )
+
+        # Task started, but the fake will not complete for ~1s. Give the
+        # worker a brief moment to create the entity and land the first
+        # progress bump, then assert entity visibility.
+        await asyncio.sleep(0.3)
+
+        runs_mid = upjack_app.list_entities("research_run", status="active", limit=10)
+        assert len(runs_mid) == 1, (
+            "research_run entity must be visible on the UI channel before the "
+            "task reaches terminal state — this is the dual-channel contract"
+        )
+        mid = runs_mid[0]
+        assert mid["run_status"] == "working", (
+            f"entity should be 'working' while task is non-terminal, got {mid['run_status']!r}"
+        )
+        assert mid["query"] == "entity-first contract"
+
+        # Now let it complete so the Client's transport drains cleanly.
+        await task
+
+    runs_final = upjack_app.list_entities("research_run", status="active", limit=10)
+    assert runs_final[0]["run_status"] == "completed"
+
+
 # ---------------------------------------------------------------------------
 # Workspace isolation
 # ---------------------------------------------------------------------------
+
+
+async def test_no_docket_on_task_path(mcp, fake_researcher, monkeypatch):
+    """Regression guard: the task-augmented path must NOT engage FastMCP's
+    Docket-coupled task dispatch. Tenant pods don't expose Redis (see
+    `.tasks/task-aware-tools/PLATFORM_RELAY_VERIFIED.md`); if Docket is on
+    the path the call hangs/fails. This test catches a regression where the
+    helper stops bypassing Docket — e.g., if FastMCP installs a new
+    docket-backed handler we don't override, or if our wrapper accidentally
+    delegates back to the original FastMCP `_run` path with task_meta set.
+
+    We assert by raising on any submit_to_docket attempt: monkeypatch the
+    function in fastmcp.server.tasks.handlers so calling it explodes with
+    a clearly-named error. Then drive a full task-augmented call → cancel
+    → result lifecycle and verify nothing trips it.
+    """
+    import fastmcp.server.tasks.handlers as handlers_mod
+
+    docket_calls: list[str] = []
+
+    async def _explode(*args, **kwargs):
+        docket_calls.append("submit_to_docket called")
+        raise AssertionError(
+            "submit_to_docket was reached during a task-augmented call — "
+            "the in-memory helper is no longer bypassing FastMCP's Docket path. "
+            "This breaks deployment in tenant pods (no Redis). See "
+            ".tasks/task-aware-tools/011-bundle-task-helper.md"
+        )
+
+    monkeypatch.setattr(handlers_mod, "submit_to_docket", _explode)
+
+    async with Client(mcp) as client:
+        task = await client.call_tool("start_research", {"query": "no docket"}, task=True)
+        result = await task
+
+    assert docket_calls == [], (
+        f"submit_to_docket was reached {len(docket_calls)} time(s) during "
+        f"a task-augmented call — Docket bypass is broken"
+    )
+    payload = parse_text_content(result.content)
+    assert isinstance(payload, dict)
+    assert payload.get("status") == "completed"
 
 
 async def test_workspace_isolation(tmp_path, monkeypatch, fake_researcher):
