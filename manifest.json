@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.4",
   "name": "@nimblebraininc/synapse-research",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Research runs powered by MCP tasks. Kick off long-running research and track progress in real time.",
   "author": {
     "name": "NimbleBrain Inc."
